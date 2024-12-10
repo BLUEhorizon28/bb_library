@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import messagebox, ttk
 import pandas as pd
 from datetime import datetime
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -9,7 +9,6 @@ file_path = r'C:\Users\ankit\OneDrive\Desktop\Library Management System\Data.xls
 data = pd.read_excel(file_path, sheet_name='in')
 
 
-# Core Functionalities
 def authenticate_user(user_id):
     """Check if the entered User ID exists in the dataset."""
     return user_id in data['Borrower ID'].values
@@ -27,11 +26,6 @@ def search_books(query, search_by):
     return pd.DataFrame()
 
 
-def get_issued_books(user_id):
-    """Retrieve all books issued by the user."""
-    return data[data['Borrower ID'] == user_id]
-
-
 def recommend_books(user_id):
     """Recommend books based on the genre of books issued by the user."""
     user_books = data[data['Borrower ID'] == user_id]
@@ -44,7 +38,7 @@ def recommend_books(user_id):
     cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
 
     recommendations = pd.DataFrame()
-    for _, row in user_books.iterrows():
+    for index, row in user_books.iterrows():
         book_idx = data.index[data['Book ID'] == row['Book ID']].tolist()[0]
         similar_indices = cosine_sim[book_idx].argsort()[-6:-1][::-1]
         recommended_books = data.iloc[similar_indices]
@@ -90,7 +84,7 @@ def return_book(book_id, user_id):
     messagebox.showinfo("Success", f"Book '{data.loc[book_index, 'Title']}' returned successfully!")
 
 
-# Tkinter UI
+# Tkinter GUI
 def login_screen():
     """Create the login screen."""
     def login():
@@ -98,44 +92,54 @@ def login_screen():
         if authenticate_user(user_id):
             messagebox.showinfo("Login Successful", "Welcome to the Library Management System!")
             login_window.destroy()
-            main_app(user_id)
+            search_screen(user_id)
         else:
             messagebox.showerror("Login Failed", "Invalid User ID. Please try again.")
 
     login_window = tk.Tk()
     login_window.title("Library Management System - Login")
 
-    tk.Label(login_window, text="User ID:", font=("Arial", 12)).pack(pady=10)
-    entry_user_id = tk.Entry(login_window, font=("Arial", 12))
+    tk.Label(login_window, text="User ID:").pack(pady=10)
+    entry_user_id = tk.Entry(login_window)
     entry_user_id.pack(pady=10)
 
-    tk.Button(login_window, text="Login", font=("Arial", 12), command=login).pack(pady=10)
+    tk.Button(login_window, text="Login", command=login).pack(pady=10)
     login_window.mainloop()
 
 
-def main_app(user_id):
-    """Main application with an integrated 'Show Issued Books' button."""
-    def populate_tree(tree, data_to_display):
-        """Populate a Treeview widget with data."""
-        for row in tree.get_children():
-            tree.delete(row)
-        for _, book in data_to_display.iterrows():
-            tree.insert("", tk.END, values=(book['Book ID'], book['Title'], book['Author'], book['Genre'], book['Availability']))
-
+def search_screen(user_id):
+    """Create the search screen."""
     def search():
-        """Search for books based on user input."""
         query = entry_search.get()
         search_by = combo_search_by.get()
         results = search_books(query, search_by)
-        populate_tree(tree, results)
 
-    def show_issued_books():
-        """Display all books issued by the user."""
-        issued_books = get_issued_books(user_id)
-        populate_tree(tree, issued_books)
+        for row in tree.get_children():
+            tree.delete(row)
+
+        for _, book in results.iterrows():
+            tree.insert("", tk.END, values=(book['Book ID'], book['Title'], book['Author'], book['Genre'], book['Availability']))
+
+    def recommend():
+        recommendations = recommend_books(user_id)
+
+        for row in tree.get_children():
+            tree.delete(row)
+
+        for _, book in recommendations.iterrows():
+            tree.insert("", tk.END, values=(book['Book ID'], book['Title'], book['Author'], book['Genre'], book['Availability']))
+
+    def view_issued_books():
+        """Show books issued to the current user."""
+        issued_books = data[data['Borrower ID'] == user_id]
+
+        for row in tree.get_children():
+            tree.delete(row)
+
+        for _, book in issued_books.iterrows():
+            tree.insert("", tk.END, values=(book['Book ID'], book['Title'], book['Author'], book['Genre'], book['Availability']))
 
     def issue_selected_book():
-        """Issue the selected book."""
         selected_item = tree.selection()
         if not selected_item:
             messagebox.showerror("Error", "No book selected.")
@@ -145,41 +149,39 @@ def main_app(user_id):
         search()
 
     def return_selected_book():
-        """Return the selected book."""
         selected_item = tree.selection()
         if not selected_item:
             messagebox.showerror("Error", "No book selected.")
             return
         book_id = tree.item(selected_item, 'values')[0]
         return_book(book_id, user_id)
-        show_issued_books()
+        search()
 
-    app = tk.Tk()
-    app.title("Library Management System")
+    search_window = tk.Tk()
+    search_window.title("Library Management System - Search")
 
-    # Search Section
-    tk.Label(app, text="Search:", font=("Arial", 12)).grid(row=0, column=0, padx=10, pady=10)
-    entry_search = tk.Entry(app, font=("Arial", 12))
+    tk.Label(search_window, text="Search:").grid(row=0, column=0, padx=10, pady=10)
+    entry_search = tk.Entry(search_window)
     entry_search.grid(row=0, column=1, padx=10, pady=10)
-    tk.Label(app, text="Search By:", font=("Arial", 12)).grid(row=0, column=2, padx=10, pady=10)
-    combo_search_by = ttk.Combobox(app, values=["Title", "Author", "Book ID"], state="readonly")
+
+    tk.Label(search_window, text="Search By:").grid(row=0, column=2, padx=10, pady=10)
+    combo_search_by = ttk.Combobox(search_window, values=["Title", "Author", "Book ID"], state="readonly")
     combo_search_by.grid(row=0, column=3, padx=10, pady=10)
     combo_search_by.current(0)
 
-    tk.Button(app, text="Search", font=("Arial", 12), command=search).grid(row=0, column=4, padx=10, pady=10)
-    tk.Button(app, text="Show Issued Books", font=("Arial", 12), command=show_issued_books).grid(row=0, column=5, padx=10, pady=10)
+    tk.Button(search_window, text="Search", command=search).grid(row=0, column=4, padx=10, pady=10)
+    tk.Button(search_window, text="Recommend", command=recommend).grid(row=0, column=5, padx=10, pady=10)
+    tk.Button(search_window, text="Issue", command=issue_selected_book).grid(row=0, column=6, padx=10, pady=10)
+    tk.Button(search_window, text="Return", command=return_selected_book).grid(row=0, column=7, padx=10, pady=10)
+    tk.Button(search_window, text="View My Issued Books", command=view_issued_books).grid(row=0, column=8, padx=10, pady=10)
 
-    # Treeview for Displaying Books
-    tree = ttk.Treeview(app, columns=("Book ID", "Title", "Author", "Genre", "Availability"), show="headings")
-    for col in tree["columns"]:
+    columns = ("Book ID", "Title", "Author", "Genre", "Availability")
+    tree = ttk.Treeview(search_window, columns=columns, show="headings")
+    for col in columns:
         tree.heading(col, text=col)
-    tree.grid(row=1, column=0, columnspan=6, padx=10, pady=10)
+    tree.grid(row=1, column=0, columnspan=9, padx=10, pady=10)
 
-    # Action Buttons
-    tk.Button(app, text="Issue Selected Book", font=("Arial", 12), command=issue_selected_book).grid(row=2, column=0, columnspan=3, pady=10)
-    tk.Button(app, text="Return Selected Book", font=("Arial", 12), command=return_selected_book).grid(row=2, column=3, columnspan=3, pady=10)
-
-    app.mainloop()
+    search_window.mainloop()
 
 
 login_screen()
